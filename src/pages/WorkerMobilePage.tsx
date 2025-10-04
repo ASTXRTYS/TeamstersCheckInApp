@@ -9,9 +9,94 @@ const quickActions = [
   { id: "solidarity-wall", label: "Solidarity Wall", icon: "✊" }
 ];
 
+interface TimePalette {
+  id: "dawn" | "zenith" | "dusk" | "midnight";
+  label: string;
+  icon: string;
+  gradient: string;
+  textColor: string;
+  mutedText: string;
+  badgeBg: string;
+  badgeText: string;
+  buttonBg: string;
+  buttonText: string;
+  shadow: string;
+}
+
+const TIME_PALETTES: TimePalette[] = [
+  {
+    id: "dawn",
+    label: "Dawn shift",
+    icon: "🌅",
+    gradient: "linear-gradient(135deg, #fbbf24 0%, #f97316 45%, #fb7185 100%)",
+    textColor: "#fff9ed",
+    mutedText: "rgba(255, 244, 214, 0.86)",
+    badgeBg: "rgba(255, 255, 255, 0.18)",
+    badgeText: "#fff7e3",
+    buttonBg: "rgba(255, 255, 255, 0.22)",
+    buttonText: "#fffaf2",
+    shadow: "0 25px 50px -12px rgba(251, 161, 82, 0.65)"
+  },
+  {
+    id: "zenith",
+    label: "High noon",
+    icon: "🌞",
+    gradient: "linear-gradient(135deg, #fcd34d 0%, #fb923c 40%, #ef4444 100%)",
+    textColor: "#1f1307",
+    mutedText: "rgba(63, 36, 11, 0.75)",
+    badgeBg: "rgba(0, 0, 0, 0.18)",
+    badgeText: "#1f1307",
+    buttonBg: "rgba(255, 255, 255, 0.24)",
+    buttonText: "#1f1307",
+    shadow: "0 25px 50px -12px rgba(239, 68, 68, 0.55)"
+  },
+  {
+    id: "dusk",
+    label: "Golden hour",
+    icon: "🌇",
+    gradient: "linear-gradient(135deg, #f97316 0%, #ec4899 45%, #8b5cf6 100%)",
+    textColor: "#fdf2ff",
+    mutedText: "rgba(249, 208, 255, 0.85)",
+    badgeBg: "rgba(255, 255, 255, 0.2)",
+    badgeText: "#fdf2ff",
+    buttonBg: "rgba(255, 255, 255, 0.22)",
+    buttonText: "#fdf2ff",
+    shadow: "0 25px 50px -12px rgba(168, 85, 247, 0.55)"
+  },
+  {
+    id: "midnight",
+    label: "Midnight run",
+    icon: "🌌",
+    gradient: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #4338ca 100%)",
+    textColor: "#e2e8f0",
+    mutedText: "rgba(226, 232, 240, 0.72)",
+    badgeBg: "rgba(148, 163, 184, 0.24)",
+    badgeText: "#e2e8f0",
+    buttonBg: "rgba(148, 163, 184, 0.24)",
+    buttonText: "#e0f2fe",
+    shadow: "0 25px 50px -12px rgba(79, 70, 229, 0.6)"
+  }
+];
+
+const resolveTimePalette = (date: Date): TimePalette => {
+  const hour = date.getHours();
+  if (hour >= 4 && hour < 9) {
+    return TIME_PALETTES[0];
+  }
+  if (hour >= 9 && hour < 17) {
+    return TIME_PALETTES[1];
+  }
+  if (hour >= 17 && hour < 21) {
+    return TIME_PALETTES[2];
+  }
+  return TIME_PALETTES[3];
+};
+
 function WorkerMobilePage() {
   const [manifest, setManifest] = useState<ShiftManifest | null>(null);
   const [status, setStatus] = useState<{ loading: boolean; error?: string }>({ loading: true });
+  const [now, setNow] = useState(() => new Date());
+  const [timePalette, setTimePalette] = useState<TimePalette>(() => resolveTimePalette(new Date()));
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +121,18 @@ function WorkerMobilePage() {
     };
   }, []);
 
+  useEffect(() => {
+    const updatePalette = () => {
+      const current = new Date();
+      setNow(current);
+      setTimePalette(resolveTimePalette(current));
+    };
+
+    updatePalette();
+    const paletteInterval = setInterval(updatePalette, 60_000);
+    return () => clearInterval(paletteInterval);
+  }, []);
+
   const activeCount = useMemo(
     () => manifest?.workers.filter(worker => worker.status === "Active").length ?? 0,
     [manifest]
@@ -47,9 +144,29 @@ function WorkerMobilePage() {
       elapsed: "0:00:00",
       todayTotal: "0h 0m",
       geofenceStatus: "Outside geofence",
-      geofenceHint: "Move to Acme Factory Gate to check in."
+      geofenceHint: "Move to Acme Factory Gate to check in.",
+      palette: timePalette
     }),
-    []
+    [timePalette]
+  );
+
+  const paletteStyle = useMemo(
+    () => ({
+      backgroundImage: timePalette.gradient,
+      boxShadow: timePalette.shadow
+    }),
+    [timePalette]
+  );
+
+  const textStyle = useMemo(() => ({ color: timePalette.textColor }), [timePalette]);
+  const mutedTextStyle = useMemo(() => ({ color: timePalette.mutedText }), [timePalette]);
+  const badgeStyle = useMemo(
+    () => ({ backgroundColor: timePalette.badgeBg, color: timePalette.badgeText }),
+    [timePalette]
+  );
+  const buttonStyle = useMemo(
+    () => ({ backgroundColor: timePalette.buttonBg, color: timePalette.buttonText }),
+    [timePalette]
   );
 
   return (
@@ -64,7 +181,7 @@ function WorkerMobilePage() {
               day: "numeric",
               hour: "numeric",
               minute: "2-digit"
-            }).format(new Date())}
+            }).format(now)}
           </p>
         </div>
         <div className="avatar placeholder">
@@ -76,43 +193,61 @@ function WorkerMobilePage() {
 
       <button
         id="shift-timer-widget"
-        className="card overflow-hidden bg-gradient-to-br from-primary to-secondary text-primary-content shadow-lg transition-all hover:shadow-xl"
+        className="card overflow-hidden rounded-2xl shadow-lg transition-all hover:shadow-2xl"
         type="button"
+        style={paletteStyle}
         onClick={() => {
           const modal = document.getElementById("shift-actions-modal") as HTMLDialogElement | null;
           modal?.showModal();
         }}
       >
-        <div className="card-body gap-3 p-4">
+        <div className="card-body gap-3 p-4" style={textStyle}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="badge badge-sm border-0 bg-white/20 text-primary-content/90">
-                <span className="text-xs">📍 {shiftTimer.geofenceStatus}</span>
+              <div className="badge badge-sm border-0" style={badgeStyle}>
+                <span className="text-xs font-medium">📍 {shiftTimer.geofenceStatus}</span>
               </div>
             </div>
             <div className="text-xl">⏱️</div>
           </div>
           <div className="text-4xl font-bold leading-none">{shiftTimer.elapsed}</div>
-          <div className="flex items-center justify-between text-sm text-primary-content/90">
+          <div className="flex items-center justify-between text-sm" style={mutedTextStyle}>
             <span>{shiftTimer.isCheckedIn ? "On shift" : "Not checked in"}</span>
-            <span className="text-xs opacity-80">Tap to manage →</span>
+            <span className="text-xs font-medium">Tap to manage →</span>
+          </div>
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide opacity-80">
+            <span>
+              {timePalette.icon} {timePalette.label}
+            </span>
+            <span>{new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(now)}</span>
           </div>
         </div>
       </button>
 
-      <section className="card overflow-hidden bg-gradient-to-br from-primary to-secondary text-primary-content shadow-2xl">
-        <div className="card-body gap-3 p-5">
+      <section
+        className="card overflow-hidden rounded-2xl shadow-2xl"
+        style={paletteStyle}
+      >
+        <div className="card-body gap-3 p-5" style={textStyle}>
           <div className="flex items-center justify-between">
-            <div className="badge badge-sm border-0 bg-white/25 text-primary-content/90">Status</div>
+            <div className="flex items-center gap-2">
+              <div className="badge badge-sm border-0" style={badgeStyle}>
+                Status
+              </div>
+              <span className="text-xs font-semibold uppercase opacity-80" style={mutedTextStyle}>
+                {timePalette.icon} {timePalette.label}
+              </span>
+            </div>
             <div className="text-2xl">⏱️</div>
           </div>
           <h3 className="text-2xl font-bold">Not Checked In</h3>
-          <p className="text-sm text-primary-content/90">
+          <p className="text-sm" style={mutedTextStyle}>
             Ready to join the line?
           </p>
           <button
             id="quick-checkin"
-            className="btn btn-block border-0 bg-white/20 text-primary-content hover:bg-white/30"
+            className="btn btn-block border-0 transition hover:opacity-95"
+            style={buttonStyle}
             onClick={() => console.info("Quick check-in")}
           >
             <span className="text-xl">📍</span>
