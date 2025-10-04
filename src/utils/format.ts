@@ -31,3 +31,30 @@ export function formatHoursWorked(hours?: number): string {
   const rounded = Math.round(hours * 100) / 100;
   return rounded.toString();
 }
+
+export function formatDurationHms(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const seconds = totalSeconds % 60;
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutesStr = minutes.toString().padStart(2, "0");
+  const secondsStr = seconds.toString().padStart(2, "0");
+  return `${hours}:${minutesStr}:${secondsStr}`;
+}
+
+export function formatDistance(meters?: number | null): string {
+  if (meters == null || Number.isNaN(meters)) {
+    return "—";
+  }
+  if (meters < 1) {
+    return "at checkpoint";
+  }
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  const kilometers = meters / 1000;
+  if (kilometers < 10) {
+    return `${kilometers.toFixed(2)} km`;
+  }
+  return `${kilometers.toFixed(1)} km`;
+}
