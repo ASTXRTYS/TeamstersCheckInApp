@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Union Rep Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Additional custom styles for Union Rep Dashboard */
+    .stat {
+      transition: transform 0.2s ease;
+    }
+
+    .stat:hover {
+      transform: translateY(-2px);
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+
+    .alert {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .table tr:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .badge {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+    }
+
+    @media (max-width: 768px) {
+      .stat-value {
+        font-size: 2rem;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body class="bg-base-200">
+  <div class="min-h-screen p-4">
+    <div class="navbar bg-base-100 rounded-box shadow mb-4">
+      <div class="flex-1">
+        <h1 class="text-xl font-bold">Union Rep Dashboard</h1>
+      </div>
+      <div class="flex-none">
+        <button class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Active Workers</div>
+        <div class="stat-value text-primary">24</div>
+        <div class="stat-desc">↗︎ 3 more than yesterday</div>
+      </div>
+
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Check-ins Today</div>
+        <div class="stat-value text-secondary">89</div>
+        <div class="stat-desc">Across 12 job sites</div>
+      </div>
+
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Alerts</div>
+        <div class="stat-value text-warning">5</div>
+        <div class="stat-desc">Require attention</div>
+      </div>
+
+      <div class="stat bg-base-100 rounded-box shadow">
+        <div class="stat-title">Coverage</div>
+        <div class="stat-value text-success">94%</div>
+        <div class="stat-desc">All job sites</div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow mb-4">
+      <div class="card-body">
+        <h2 class="card-title">Recent Alerts</h2>
+        <div class="space-y-2">
+          <div class="alert alert-warning">
+            <span>⚠️ Worker late check-in at Site #42</span>
+          </div>
+          <div class="alert alert-info">
+            <span>ℹ️ New worker registered: John Smith</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">Active Workers</h2>
+        <div class="overflow-x-auto">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Job Site</th>
+                <th>Check-in Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Maria Garcia</td>
+                <td><div class="badge badge-success">Active</div></td>
+                <td>Site #12</td>
+                <td>8:15 AM</td>
+              </tr>
+              <tr>
+                <td>James Wilson</td>
+                <td><div class="badge badge-success">Active</div></td>
+                <td>Site #8</td>
+                <td>7:45 AM</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Union Rep Dashboard - JavaScript functionality
+    const dashboardData = {
+      activeWorkers: 24,
+      checkinsToday: 89,
+      alerts: 5,
+      coverage: 94,
+      workers: [
+        { name: "Maria Garcia", status: "active", site: "Site #12", checkin: "8:15 AM" },
+        { name: "James Wilson", status: "active", site: "Site #8", checkin: "7:45 AM" },
+        { name: "Sarah Chen", status: "active", site: "Site #15", checkin: "8:00 AM" }
+      ],
+      recentAlerts: [
+        { type: "warning", message: "Worker late check-in at Site #42" },
+        { type: "info", message: "New worker registered: John Smith" }
+      ]
+    };
+
+    function updateStats(data) {
+      document.querySelector('.stat-value.text-primary').textContent = data.activeWorkers;
+      document.querySelector('.stat-value.text-secondary').textContent = data.checkinsToday;
+      document.querySelector('.stat-value.text-warning').textContent = data.alerts;
+      document.querySelector('.stat-value.text-success').textContent = data.coverage + '%';
+    }
+
+    function renderWorkerTable(workers) {
+      const tbody = document.querySelector('tbody');
+      tbody.innerHTML = workers.map(worker => `
+        <tr>
+          <td>${worker.name}</td>
+          <td><div class="badge badge-success">${worker.status}</div></td>
+          <td>${worker.site}</td>
+          <td>${worker.checkin}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function startAutoRefresh() {
+      try {
+        const response = await fetch('/api/dashboard/updates');
+        if (!response.ok) return;
+        const data = await response.json();
+        updateStats(data);
+        renderWorkerTable(data.workers);
+      } catch (err) {
+        console.error('Failed to refresh dashboard data', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateStats(dashboardData);
+      renderWorkerTable(dashboardData.workers);
+      setInterval(startAutoRefresh, 30000);
+    });
+  </script>
+</body>
+</html>

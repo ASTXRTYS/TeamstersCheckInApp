@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check-in History</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@5/dist/full.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Check-in History Table - Custom Styles */
+    .table {
+      font-size: 0.875rem;
+    }
+
+    .table thead th {
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .table tbody tr {
+      transition: background-color 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .badge {
+      font-weight: 600;
+      font-size: 0.75rem;
+      padding: 0.375rem 0.75rem;
+    }
+
+    .input,
+    .select {
+      transition: border-color 0.2s ease;
+    }
+
+    .input:focus,
+    .select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .join-item.btn-active {
+      background-color: var(--primary);
+      border-color: var(--primary);
+    }
+
+    @media (max-width: 768px) {
+      .table {
+        font-size: 0.75rem;
+      }
+
+      .table thead th {
+        padding: 0.5rem;
+      }
+
+      .table tbody td {
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body class="bg-base-200">
+  <div class="min-h-screen p-4">
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="card-title">Check-in History</h2>
+          <button class="btn btn-primary btn-sm" id="export-csv">Export CSV</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+          <input type="text" placeholder="Search worker..." class="input input-bordered input-sm" id="filter-search">
+          <select class="select select-bordered select-sm" id="filter-site">
+            <option value="all">All Sites</option>
+            <option value="Site #1">Site #1</option>
+            <option value="Site #2">Site #2</option>
+          </select>
+          <input type="date" class="input input-bordered input-sm" id="filter-date">
+          <button class="btn btn-outline btn-sm" id="filter-clear">Clear Filters</button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="table table-zebra">
+            <thead>
+              <tr>
+                <th>Worker Name</th>
+                <th>Job Site</th>
+                <th>Check-in Time</th>
+                <th>Check-out Time</th>
+                <th>Hours Worked</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between mt-4">
+          <div class="text-sm opacity-70" id="pagination-summary">Showing 0-0 of 0 records</div>
+          <div class="join" id="pagination-controls">
+            <button class="join-item btn btn-sm" data-page="prev">«</button>
+            <button class="join-item btn btn-sm btn-active" data-page="1">1</button>
+            <button class="join-item btn btn-sm" data-page="next">»</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Check-in History Table - JavaScript functionality
+    const historyData = {
+      records: [],
+      currentPage: 1,
+      recordsPerPage: 10,
+      filters: {
+        search: '',
+        site: 'all',
+        date: ''
+      }
+    };
+
+    async function fetchHistory() {
+      try {
+        const response = await fetch('/api/checkins/history');
+        if (!response.ok) throw new Error('Bad response');
+        historyData.records = await response.json();
+      } catch (error) {
+        console.error('Error fetching history:', error);
+        historyData.records = [];
+      }
+      renderTable();
+    }
+
+    function filterRecords() {
+      return historyData.records.filter(record => {
+        const matchesSearch = record.workerName.toLowerCase().includes(historyData.filters.search.toLowerCase());
+        const matchesSite = historyData.filters.site === 'all' || record.site === historyData.filters.site;
+        const matchesDate = !historyData.filters.date || record.checkinTime.startsWith(historyData.filters.date);
+        return matchesSearch && matchesSite && matchesDate;
+      });
+    }
+
+    function renderTable() {
+      const filtered = filterRecords();
+      const start = (historyData.currentPage - 1) * historyData.recordsPerPage;
+      const end = start + historyData.recordsPerPage;
+      const pageRecords = filtered.slice(start, end);
+
+      const tbody = document.querySelector('tbody');
+      tbody.innerHTML = pageRecords.map(record => `
+        <tr>
+          <td>${record.workerName}</td>
+          <td>${record.site}</td>
+          <td>${record.checkinTime}</td>
+          <td>${record.checkoutTime || '-'}</td>
+          <td>${record.hoursWorked || '-'}</td>
+          <td><div class="badge badge-${record.status === 'Completed' ? 'success' : 'warning'}">${record.status}</div></td>
+        </tr>
+      `).join('');
+
+      updatePagination(filtered.length);
+    }
+
+    function updatePagination(totalRecords) {
+      const totalPages = Math.max(1, Math.ceil(totalRecords / historyData.recordsPerPage));
+      historyData.currentPage = Math.min(historyData.currentPage, totalPages);
+
+      const summary = document.getElementById('pagination-summary');
+      const start = totalRecords === 0 ? 0 : (historyData.currentPage - 1) * historyData.recordsPerPage + 1;
+      const end = Math.min(historyData.currentPage * historyData.recordsPerPage, totalRecords);
+      summary.textContent = `Showing ${start}-${end} of ${totalRecords} records`;
+
+      const controls = document.getElementById('pagination-controls');
+      controls.innerHTML = `
+        <button class="join-item btn btn-sm" data-page="prev" ${historyData.currentPage === 1 ? 'disabled' : ''}>«</button>
+        ${Array.from({ length: totalPages }, (_, i) => {
+          const page = i + 1;
+          const active = page === historyData.currentPage ? 'btn-active' : '';
+          return `<button class="join-item btn btn-sm ${active}" data-page="${page}">${page}</button>`;
+        }).join('')}
+        <button class="join-item btn btn-sm" data-page="next" ${historyData.currentPage === totalPages ? 'disabled' : ''}>»</button>
+      `;
+    }
+
+    function exportToCSV() {
+      const filtered = filterRecords();
+      const csv = [
+        ['Worker Name', 'Job Site', 'Check-in Time', 'Check-out Time', 'Hours Worked', 'Status'],
+        ...filtered.map(r => [r.workerName, r.site, r.checkinTime, r.checkoutTime || '', r.hoursWorked || '', r.status])
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'checkin-history.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchHistory();
+
+      document.getElementById('filter-search').addEventListener('input', (e) => {
+        historyData.filters.search = e.target.value;
+        historyData.currentPage = 1;
+        renderTable();
+      });
+
+      document.getElementById('filter-site').addEventListener('change', (e) => {
+        historyData.filters.site = e.target.value;
+        historyData.currentPage = 1;
+        renderTable();
+      });
+
+      document.getElementById('filter-date').addEventListener('change', (e) => {
+        historyData.filters.date = e.target.value;
+        historyData.currentPage = 1;
+        renderTable();
+      });
+
+      document.getElementById('filter-clear').addEventListener('click', () => {
+        historyData.filters = { search: '', site: 'all', date: '' };
+        historyData.currentPage = 1;
+        document.getElementById('filter-search').value = '';
+        document.getElementById('filter-site').value = 'all';
+        document.getElementById('filter-date').value = '';
+        renderTable();
+      });
+
+      document.getElementById('pagination-controls').addEventListener('click', (e) => {
+        if (!(e.target instanceof HTMLButtonElement)) return;
+        const page = e.target.getAttribute('data-page');
+        if (page === 'prev' && historyData.currentPage > 1) {
+          historyData.currentPage -= 1;
+        } else if (page === 'next') {
+          const totalPages = Math.ceil(filterRecords().length / historyData.recordsPerPage);
+          if (historyData.currentPage < totalPages) historyData.currentPage += 1;
+        } else if (!Number.isNaN(Number(page))) {
+          historyData.currentPage = Number(page);
+        }
+        renderTable();
+      });
+
+      document.getElementById('export-csv').addEventListener('click', exportToCSV);
+    });
+  </script>
+</body>
+</html>
