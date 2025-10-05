@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchShiftManifest, ShiftManifest } from "../data/mockApi";
 import { useGeofenceDistance } from "../hooks/useGeofenceDistance";
 import {
@@ -6,6 +6,7 @@ import {
   formatDurationFromNow,
   formatDurationHms
 } from "../utils/format";
+import SchedulePlanner from "../components/SchedulePlanner";
 
 const quickActions = [
   { id: "view-schedule", label: "My Schedule", icon: "📅" },
@@ -16,6 +17,7 @@ const quickActions = [
 
 const GEOFENCE_TARGET = { lat: 37.78081, lng: -122.40524 };
 const GEOFENCE_RADIUS_METERS = 120;
+const WORKER_USER_ID = "worker-jordan";
 
 type ShiftMode = "idle" | "running" | "paused";
 
@@ -47,6 +49,8 @@ function WorkerMobilePage() {
     lastStoppedReason: undefined
   });
   const [tick, setTick] = useState(0);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const scheduleDialogRef = useRef<HTMLDialogElement | null>(null);
 
   const geofence = useGeofenceDistance({
     target: GEOFENCE_TARGET,
@@ -295,6 +299,24 @@ function WorkerMobilePage() {
     });
   };
 
+  useEffect(() => {
+    const dialog = scheduleDialogRef.current;
+    if (!dialog) return;
+    const handleClose = () => setScheduleOpen(false);
+    dialog.addEventListener("close", handleClose);
+    return () => dialog.removeEventListener("close", handleClose);
+  }, []);
+
+  useEffect(() => {
+    const dialog = scheduleDialogRef.current;
+    if (!dialog) return;
+    if (scheduleOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!scheduleOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [scheduleOpen]);
+
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-4">
       <header className="flex items-center justify-between rounded-2xl bg-base-100/80 px-4 py-5 shadow-lg">
@@ -389,7 +411,13 @@ function WorkerMobilePage() {
             key={action.id}
             id={action.id}
             className="card bg-base-200/80 transition-colors hover:bg-base-300/60"
-            onClick={() => console.info(action.id)}
+            onClick={() => {
+              if (action.id === "view-schedule") {
+                setScheduleOpen(true);
+              } else {
+                console.info(action.id);
+              }
+            }}
           >
             <div className="card-body items-center gap-2 p-4 text-center">
               <div className="text-3xl" aria-hidden>
@@ -536,6 +564,19 @@ function WorkerMobilePage() {
             </div>
           </div>
         </div>
+        <form className="modal-backdrop" method="dialog">
+          <button>close</button>
+        </form>
+      </dialog>
+
+      <dialog ref={scheduleDialogRef} className="modal">
+        {scheduleOpen && (
+          <SchedulePlanner
+            open={scheduleOpen}
+            userId={WORKER_USER_ID}
+            onClose={() => setScheduleOpen(false)}
+          />
+        )}
         <form className="modal-backdrop" method="dialog">
           <button>close</button>
         </form>

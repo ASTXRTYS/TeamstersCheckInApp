@@ -22,8 +22,19 @@ Current defaults live in code:
 - **Geofence target**: `GEOFENCE_TARGET` in `WorkerMobilePage.tsx`
 - **Geofence radius**: `GEOFENCE_RADIUS_METERS`
 - **Time-of-day palette**: `TIME_PALETTES` in `WorkerMobilePage.tsx`
+- **Schedule planner defaults**: `CONFIG` in `src/components/SchedulePlanner.tsx` (7-hour blocks, 35-hour weekly target, Friday cutoff 8 PM)
 
 Consider extracting these into a central config module if multiple components will use them.
+
+## Worker Schedule Planner
+
+The worker "My Schedule" modal uses the configuration object in `src/components/SchedulePlanner.tsx`:
+
+- Workers place fixed 7-hour blocks on a Monday–Friday timeline (`SHIFT_LENGTH_HOURS`).
+- Weekly goal is 35 hours / five shifts, surfaced via `WEEKLY_TARGET_HOURS`.
+- Friday shifts must end by 8 PM (`MAX_FRIDAY_END_HOUR`), enforced client-side and to be mirrored on the API.
+- Simple presets map to starting hours (`morning`, `afternoon`, `night`) and can be pushed into the detailed timeline.
+- Feature toggles like `copyLastWeek` continue to gate enhancements; update this doc when enabling/disabling them.
 
 ## DaisyUI Themes
 

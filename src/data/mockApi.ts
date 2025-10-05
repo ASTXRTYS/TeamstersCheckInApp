@@ -54,6 +54,31 @@ export interface CheckinRecord {
   status: "Completed" | "In Progress";
 }
 
+export type WeekdayKey =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export type ShiftId = "morning" | "afternoon" | "night";
+
+export interface DetailedShift {
+  startHour: number; // 0-24, interpreted in local site time
+}
+
+export type SimpleSchedule = Record<WeekdayKey, ShiftId[]>;
+export type DetailedSchedule = Record<WeekdayKey, DetailedShift | null>;
+
+export interface WeeklySchedule {
+  userId: string;
+  weekStart: string; // ISO yyyy-mm-dd
+  simple: SimpleSchedule;
+  detailed: DetailedSchedule;
+}
+
 const manifestSeed: ShiftManifest = {
   siteName: "Downtown Plaza",
   shiftLabel: "Today's Shift",
@@ -178,6 +203,52 @@ const historySeed: CheckinRecord[] = [
   }
 ];
 
+const WEEKDAY_KEYS: WeekdayKey[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday"
+];
+
+const createEmptySchedule = (userId: string, weekStart: string): WeeklySchedule => ({
+  userId,
+  weekStart,
+  simple: WEEKDAY_KEYS.reduce((acc, day) => {
+    acc[day] = [];
+    return acc;
+  }, {} as SimpleSchedule),
+  detailed: WEEKDAY_KEYS.reduce((acc, day) => {
+    acc[day] = null;
+    return acc;
+  }, {} as DetailedSchedule)
+});
+
+const scheduleSeed: WeeklySchedule = {
+  userId: "worker-jordan",
+  weekStart: "2025-09-29",
+  simple: {
+    monday: ["morning"],
+    tuesday: ["morning"],
+    wednesday: ["morning"],
+    thursday: ["morning"],
+    friday: ["morning", "afternoon"],
+    saturday: ["afternoon"],
+    sunday: []
+  },
+  detailed: {
+    monday: { startHour: 6 },
+    tuesday: { startHour: 6 },
+    wednesday: { startHour: 6 },
+    thursday: { startHour: 6 },
+    friday: { startHour: 8 },
+    saturday: null,
+    sunday: null
+  }
+};
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -185,6 +256,9 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 let manifestState = clone(manifestSeed);
 let dashboardState = clone(dashboardSeed);
 let historyState = clone(historySeed);
+let scheduleState: Record<string, WeeklySchedule> = {
+  [`${scheduleSeed.userId}:${scheduleSeed.weekStart}`]: clone(scheduleSeed)
+};
 
 function mutateDashboard(snapshot: DashboardSnapshot): DashboardSnapshot {
   const next = clone(snapshot);
@@ -238,4 +312,37 @@ export function resetMockData(): void {
   manifestState = clone(manifestSeed);
   dashboardState = clone(dashboardSeed);
   historyState = clone(historySeed);
+  scheduleState = {
+    [`${scheduleSeed.userId}:${scheduleSeed.weekStart}`]: clone(scheduleSeed)
+  };
+}
+
+const getScheduleKey = (userId: string, weekStart: string) => `${userId}:${weekStart}`;
+
+export async function fetchWeeklySchedule(userId: string, weekStart: string): Promise<WeeklySchedule> {
+  await delay(180);
+  const key = getScheduleKey(userId, weekStart);
+  const existing = scheduleState[key];
+  if (existing) {
+    return clone(existing);
+  }
+  const empty = createEmptySchedule(userId, weekStart);
+  scheduleState[key] = clone(empty);
+  return empty;
+}
+
+export async function submitWeeklySchedule(schedule: WeeklySchedule): Promise<void> {
+  await delay(180);
+  const key = getScheduleKey(schedule.userId, schedule.weekStart);
+  scheduleState[key] = clone(schedule);
+}
+
+export async function fetchLastWeekSchedule(userId: string): Promise<WeeklySchedule> {
+  await delay(160);
+  const entries = Object.values(scheduleState).filter(entry => entry.userId === userId);
+  if (entries.length === 0) {
+    return createEmptySchedule(userId, scheduleSeed.weekStart);
+  }
+  const latest = entries.sort((a, b) => b.weekStart.localeCompare(a.weekStart))[0];
+  return clone(latest);
 }
