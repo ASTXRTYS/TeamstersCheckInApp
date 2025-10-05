@@ -23,6 +23,7 @@ npm run dev -- --host 127.0.0.1 --port 5173
 | Architecture | Stack, layout, data flow | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | Worker UX | Daypart palettes, shift timer, geofence behavior | [`docs/UX-GUIDE.md`](docs/UX-GUIDE.md)<br>[`docs/worker/SHIFT_TIMER.md`](docs/worker/SHIFT_TIMER.md) |
 | Data Layer | Mock API schemas & mutation strategy | [`docs/api/MOCK_DATA.md`](docs/api/MOCK_DATA.md) |
+| Placeholders | Inventory of stubs needing real integrations | [`docs/PLACEHOLDERS.md`](docs/PLACEHOLDERS.md) |
 | Configuration | Environment knobs & future flags | [`docs/CONFIG.md`](docs/CONFIG.md) |
 | Testing | Manual QA + planned automation | [`docs/TESTING.md`](docs/TESTING.md) |
 | Contributions | Branching, PR checklist, expectations | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
