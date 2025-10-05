@@ -33,6 +33,7 @@ The palette affects:
 The four quick action tiles are intentionally minimal. Icons anchor the action; optional badges (e.g., “Updates – 3 new”) call attention to asynchronous tasks.
 
 - **My Schedule** now opens a modal planner with Simple (7-hour shift presets) and Detailed (timeline) views. Detailed mode lets workers slide fixed 7-hour blocks anywhere between Monday 12 AM and Friday 8 PM, showing overnight wraps and remaining hours at a glance.
+- Simple view presents a five-day checklist: tap to cycle presets, mark days off, or jump into Detailed. Weekend coverage is optional and clearly annotated.
 
 ### Accessibility & Feedback
 

@@ -23,6 +23,7 @@ const WEEK_DAYS: Array<{ key: WeekdayKey; label: string }> = [
 ];
 
 const WORK_DAYS = WEEK_DAYS.filter(day => day.key !== "saturday" && day.key !== "sunday");
+const WEEKEND_DAYS = WEEK_DAYS.filter(day => day.key === "saturday" || day.key === "sunday");
 
 const SIMPLE_SHIFTS: Record<ShiftId, { label: string; startHour: number }> = {
   morning: { label: "Morning", startHour: 6 },
@@ -34,6 +35,8 @@ const SHIFT_LENGTH_HOURS = 7;
 const WEEKLY_TARGET_HOURS = 35;
 const WEEKLY_SHIFT_TARGET = WEEKLY_TARGET_HOURS / SHIFT_LENGTH_HOURS;
 const MAX_FRIDAY_END_HOUR = 20; // 8 PM cut-off per requirements
+
+const SHIFT_SEQUENCE: Array<ShiftId | null> = ["morning", "afternoon", "night", null];
 
 const DAYPART_BANDS = [
   { label: "Overnight", start: 0, end: 6, color: "rgba(15, 23, 42, 0.35)" },
@@ -125,6 +128,12 @@ const clampStartHour = (day: WeekdayKey, rawHour: number): number => {
     return Math.min(clampedMin, maxStart);
   }
   return Math.min(clampedMin, 23);
+};
+
+const matchPresetByStartHour = (startHour: number): ShiftId | null => {
+  const entry = (Object.entries(SIMPLE_SHIFTS) as Array<[ShiftId, { label: string; startHour: number }]>)
+    .find(([, value]) => value.startHour === startHour);
+  return entry ? entry[0] : null;
 };
 
 const shiftEndHour = (shift: DetailedShift | null): number | null =>
@@ -245,39 +254,169 @@ function SchedulePlanner({ open, userId, onClose }: SchedulePlannerProps) {
   const weeklyDetailedHours = useMemo(() => totalDetailedHours(schedule.detailed), [schedule.detailed]);
 
   const weeklyHours = activeView === "simple" ? weeklySimpleHours : weeklyDetailedHours;
-  const remainingHours = Math.max(0, WEEKLY_TARGET_HOURS - weeklyDetailedHours);
+  const remainingHours = Math.max(0, WEEKLY_TARGET_HOURS - weeklyHours);
   const detailedShiftCount = useMemo(
     () => WORK_DAYS.filter(day => Boolean(schedule.detailed[day.key])).length,
     [schedule.detailed]
+  );
+  const simpleShiftCount = useMemo(
+    () => WORK_DAYS.filter(day => schedule.simple[day.key].length > 0).length,
+    [schedule.simple]
   );
 
   const handleWeekChange = (direction: -1 | 1) => {
     setWeekStart(prev => addDays(prev, direction * 7));
   };
 
-  const handleToggleShift = (day: WeekdayKey, shiftId: ShiftId) => {
-    setSchedule(prev => {
-      const dayShifts = prev.simple[day];
-      const nextShifts = dayShifts.includes(shiftId)
-        ? dayShifts.filter(shift => shift !== shiftId)
-        : [...dayShifts, shiftId];
-      return {
+  const getSelectedSimpleShift = (day: WeekdayKey): ShiftId | null => schedule.simple[day][0] ?? null;
+
+  const setSimpleShift = (day: WeekdayKey, shiftId: ShiftId | null) => {
+    if (shiftId == null) {
+      setSchedule(prev => ({
         ...prev,
         simple: {
           ...prev.simple,
-          [day]: nextShifts
+          [day]: []
+        },
+        detailed: {
+          ...prev.detailed,
+          [day]: null
         }
-      };
-    });
-  };
+      }));
+      return;
+    }
 
-  const applyDetailedShift = (day: WeekdayKey, startHour: number) => {
+    const startHour = SIMPLE_SHIFTS[shiftId].startHour;
     setSchedule(prev => ({
       ...prev,
+      simple: {
+        ...prev.simple,
+        [day]: [shiftId]
+      },
       detailed: {
         ...prev.detailed,
         [day]: { startHour: clampStartHour(day, startHour) }
       }
+    }));
+  };
+
+  const handleCycleShift = (day: WeekdayKey) => {
+    const current = getSelectedSimpleShift(day);
+    const currentIndex = SHIFT_SEQUENCE.findIndex(entry => entry === current);
+    const nextIndex = currentIndex >= 0 ? currentIndex + 1 : 0;
+    const next = SHIFT_SEQUENCE[nextIndex % SHIFT_SEQUENCE.length];
+    setSimpleShift(day, next);
+  };
+
+  const handleSelectShift = (day: WeekdayKey, shiftId: ShiftId) => {
+    setSimpleShift(day, shiftId);
+  };
+
+  const handleClearShift = (day: WeekdayKey) => {
+    setSimpleShift(day, null);
+  };
+
+  const handleFineTune = (day: WeekdayKey) => {
+    if (!schedule.detailed[day]) {
+      const fallback = getSelectedSimpleShift(day) ?? "morning";
+      setSimpleShift(day, fallback);
+    }
+    setActiveView("detailed");
+  };
+
+  const renderSimpleDayCard = (
+    day: { key: WeekdayKey; label: string },
+    options: { optional?: boolean } = {}
+  ) => {
+    const simpleSelection = getSelectedSimpleShift(day.key);
+    const detailedShift = schedule.detailed[day.key];
+    const displayStartHour = detailedShift?.startHour ?? (simpleSelection != null
+      ? SIMPLE_SHIFTS[simpleSelection].startHour
+      : null);
+    const hasShift = displayStartHour != null;
+    const matchedPreset = simpleSelection != null
+      ? SIMPLE_SHIFTS[simpleSelection]
+      : null;
+    const summaryLabel = hasShift
+      ? matchedPreset && matchedPreset.startHour === displayStartHour
+        ? matchedPreset.label
+        : "Custom shift"
+      : options.optional
+      ? "Not scheduled"
+      : "Off duty";
+    const timeLabel = hasShift
+      ? `${formatTime(displayStartHour!)} – ${formatTime(displayStartHour! + SHIFT_LENGTH_HOURS)}`
+      : "Tap to set a shift";
+
+    return (
+      <article key={day.key} className="rounded-2xl border border-base-300/60 bg-base-200/60 p-4">
+        {options.optional && (
+          <span className="badge badge-outline badge-xs mb-2">Optional</span>
+        )}
+        <button
+          type="button"
+          className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+            hasShift
+              ? "border-primary/60 bg-primary/10 hover:border-primary"
+              : "border-base-300/70 bg-base-200/70 hover:border-primary/40"
+          }`}
+          onClick={() => handleCycleShift(day.key)}
+        >
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+              {day.label}
+            </span>
+            <span className="text-lg font-semibold text-base-content">{summaryLabel}</span>
+            <span className="text-xs text-base-content/70">{timeLabel}</span>
+          </div>
+          <div className="flex flex-col items-end gap-1 text-right text-[10px] uppercase tracking-wide text-base-content/60">
+            <span className={`badge badge-sm ${hasShift ? "badge-success" : "badge-ghost"}`}>
+              {hasShift ? `${SHIFT_LENGTH_HOURS} hrs` : "Off"}
+            </span>
+            <span className="text-primary">Cycle</span>
+          </div>
+        </button>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {(Object.keys(SIMPLE_SHIFTS) as ShiftId[]).map(option => (
+            <button
+              key={option}
+              type="button"
+              className={`btn btn-xs ${simpleSelection === option ? "btn-primary" : "btn-outline"}`}
+              onClick={() => handleSelectShift(day.key, option)}
+            >
+              {SIMPLE_SHIFTS[option].label}
+            </button>
+          ))}
+          <button type="button" className="btn btn-xs btn-ghost" onClick={() => handleClearShift(day.key)}>
+            Off
+          </button>
+          <button type="button" className="btn btn-xs btn-link text-primary" onClick={() => handleFineTune(day.key)}>
+            Fine tune
+          </button>
+        </div>
+      </article>
+    );
+  };
+
+  const applyDetailedShift = (day: WeekdayKey, startHour: number) => {
+    const nextStart = clampStartHour(day, startHour);
+    const matchedPreset = matchPresetByStartHour(nextStart);
+    setSchedule(prev => ({
+      ...prev,
+      detailed: {
+        ...prev.detailed,
+        [day]: { startHour: nextStart }
+      },
+      simple: matchedPreset != null
+        ? {
+            ...prev.simple,
+            [day]: [matchedPreset]
+          }
+        : {
+            ...prev.simple,
+            [day]: []
+          }
     }));
   };
 
@@ -287,6 +426,10 @@ function SchedulePlanner({ open, userId, onClose }: SchedulePlannerProps) {
       detailed: {
         ...prev.detailed,
         [day]: null
+      },
+      simple: {
+        ...prev.simple,
+        [day]: []
       }
     }));
   };
@@ -327,9 +470,9 @@ function SchedulePlanner({ open, userId, onClose }: SchedulePlannerProps) {
   };
 
   const handleApplySimplePreset = (day: WeekdayKey) => {
-    const firstPreset = schedule.simple[day][0];
+    const firstPreset = getSelectedSimpleShift(day);
     if (!firstPreset) return;
-    applyDetailedShift(day, SIMPLE_SHIFTS[firstPreset].startHour);
+    setSimpleShift(day, firstPreset);
   };
 
   const handleCopyLastWeek = async () => {
@@ -416,8 +559,10 @@ function SchedulePlanner({ open, userId, onClose }: SchedulePlannerProps) {
             </button>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-semibold">{weeklyDetailedHours} / {WEEKLY_TARGET_HOURS} hrs scheduled</span>
-            <span className="text-base-content/70">{detailedShiftCount} of {WEEKLY_SHIFT_TARGET} shifts</span>
+            <span className="font-semibold">{weeklyHours} / {WEEKLY_TARGET_HOURS} hrs scheduled</span>
+            <span className="text-base-content/70">
+              {(activeView === "simple" ? simpleShiftCount : detailedShiftCount)} of {WEEKLY_SHIFT_TARGET} shifts
+            </span>
             {remainingHours > 0 ? (
               <span className="badge badge-outline badge-sm text-xs">{remainingHours} hrs remaining</span>
             ) : (
@@ -460,32 +605,25 @@ function SchedulePlanner({ open, userId, onClose }: SchedulePlannerProps) {
             <div className="skeleton h-20 w-full" />
           </div>
         ) : activeView === "simple" ? (
-          <div className="space-y-3">
-            {WEEK_DAYS.map(day => (
-              <article key={day.key} className="rounded-2xl border border-base-300/60 bg-base-200/60 p-4">
-                <header className="mb-3 flex items-center justify-between">
-                  <div className="font-semibold">{day.label}</div>
-                  <span className="text-sm text-base-content/70">{simpleDailyHours[day.key]} hrs</span>
-                </header>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {(Object.keys(SIMPLE_SHIFTS) as ShiftId[]).map(shiftId => {
-                    const shift = SIMPLE_SHIFTS[shiftId];
-                    const selected = schedule.simple[day.key].includes(shiftId);
-                    return (
-                      <button
-                        key={shiftId}
-                        type="button"
-                        className={`btn h-auto flex-col gap-1 whitespace-normal border-0 text-left ${selected ? "btn-primary" : "btn-ghost"}`}
-                        onClick={() => handleToggleShift(day.key, shiftId)}
-                      >
-                        <span className="text-sm font-medium">{shift.label}</span>
-                        <strong>{formatTime(shift.startHour)} – {formatTime(shift.startHour + SHIFT_LENGTH_HOURS)}</strong>
-                      </button>
-                    );
-                  })}
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              {WORK_DAYS.map(day => renderSimpleDayCard(day))}
+            </div>
+            <div className="rounded-2xl border border-base-300/60 bg-base-200/50 p-4">
+              <header className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                    Weekend coverage (optional)
+                  </p>
+                  <p className="text-sm text-base-content/70">
+                    Add shifts for extra coverage or leave off by default.
+                  </p>
                 </div>
-              </article>
-            ))}
+              </header>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {WEEKEND_DAYS.map(day => renderSimpleDayCard(day, { optional: true }))}
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
