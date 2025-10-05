@@ -10,6 +10,7 @@ This file is for automation agents and copilots working in this repo. Stay align
    - UX decisions & resources → [`docs/UX-GUIDE.md`](docs/UX-GUIDE.md) and [`docs/RESOURCES.md`](docs/RESOURCES.md)
 3. **No Silent API or Config Changes**
    - If you touch `mockApi.ts`, geofence constants, or planned env flags, update [`docs/CONFIG.md`](docs/CONFIG.md) and mention it in your output.
+   - Adding a new placeholder or external dependency? Extend [`docs/PLACEHOLDERS.md`](docs/PLACEHOLDERS.md) so humans know what still needs wiring.
 4. **Always Validate**
    - Run `npm run build` after code edits. If the command fails, stop and report the failure; do not guess at the result.
 5. **Document Intent**
